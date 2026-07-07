@@ -1,6 +1,6 @@
 Project Notebooks
 
-This repository contains the Jupyter notebooks for this project.
+This repository contains the Jupyter notebooks for the textile classification CNN
 
 Data
 
