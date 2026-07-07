@@ -20,3 +20,7 @@ Notes
 File paths will need to be adjusted depending on where you store the data.
 No large datasets are included directly in this repository — see the notebooks for where the data is expected to be loaded from.
 
+LINKS TO DATASETS
+Microscope data: https://drive.google.com/drive/folders/1NnlttktqZY4hxfOZLg47rAe7cELhqUwC?usp=drive_link
+NIST: https://drive.google.com/drive/folders/1uyZlze6uyVF9-bYiCeGIXMApSOjLynU5?usp=sharing
+TEXMM: https://drive.google.com/drive/folders/1w0vUkxWzDAhOya6olqum1u6Cr69mkuBU?usp=sharing
