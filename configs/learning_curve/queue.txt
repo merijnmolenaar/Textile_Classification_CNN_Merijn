@@ -1,0 +1,12 @@
+# Overnight queue for the learning curve, run top to bottom by scripts/run_queue.py.
+# Most important first, so a short night still gives a usable curve.
+# 100% points already exist: results crop448_cv_v1 and resize448_cv_v1.
+configs/learning_curve/crop448_lc_f050.yaml
+configs/learning_curve/crop448_lc_f025.yaml
+configs/learning_curve/crop448_lc_f075.yaml
+configs/learning_curve/resize448_lc_f050.yaml
+configs/learning_curve/resize448_lc_f025.yaml
+configs/learning_curve/resize448_lc_f075.yaml
+# extra: second subsample of 25%, to see how noisy the smallest point is
+configs/learning_curve/crop448_lc_f025_s1.yaml
+configs/learning_curve/resize448_lc_f025_s1.yaml

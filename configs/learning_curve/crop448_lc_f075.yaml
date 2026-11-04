@@ -1,0 +1,8 @@
+# Learning curve (power-law slope). Identical to configs/crop448_cv.yaml (run crop448_cv_v1),
+# except that only a fraction of each fold's training samples is used (split.train_frac).
+# Validation and test samples are exactly those of crop448_cv_v1, so results compare sample by sample.
+# Subsample: stratified by label combination, nested across fractions for the same subsample_seed.
+name: crop448_lc_f075
+data: {mode: crop, img_size: 448, augment: false, eval_tiles: [5, 3], train_crops_per_image: 1}
+split: {scheme: cv, n_folds: 5, val_frac: 0.15, split_seed: 42, train_frac: 0.75, subsample_seed: 0}
+train: {lr: 1.0e-3, select_on: val_sample_acc, tune_threshold: true}

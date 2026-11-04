@@ -1,0 +1,8 @@
+# Learning curve (power-law slope). Identical to configs/resize448_cv.yaml (run resize448_cv_v1),
+# except that only a fraction of each fold's training samples is used (split.train_frac).
+# Validation and test samples are exactly those of resize448_cv_v1, so results compare sample by sample.
+# Subsample: stratified by label combination, nested across fractions for the same subsample_seed.
+name: resize448_lc_f050
+data: {mode: resize, augment: false}
+split: {scheme: cv, n_folds: 5, val_frac: 0.15, split_seed: 42, train_frac: 0.5, subsample_seed: 0}
+train: {lr: 1.0e-3, select_on: val_sample_acc, tune_threshold: true}

@@ -26,8 +26,11 @@ The notebook pipeline (`02_Microscope_...ipynb`) is ported to plain Python in `b
 | `baip/cv.py` | pools the test predictions of all folds into one result |
 | `scripts/train.py` | one run |
 | `scripts/run_cv.py` | k-fold cross-validation with resume, then pooling |
-| `configs/` | `paths_*.yaml` (where data lives) and one yaml per experiment |
+| `scripts/run_queue.py` | runs a list of CV experiments one after another (overnight), one log per experiment |
+| `scripts/analysis/` | `compare_runs.py` (paired comparison + McNemar), `learning_curve.py` (power-law fit), `one_vs_three_photos.py`, `plot_history.py` |
+| `configs/` | `paths_*.yaml` (where data lives) and one yaml per experiment; `configs/learning_curve/` for the learning curve |
 | `colab/run_experiment.ipynb` | Colab runner (GPU) |
+| `colab/run_learning_curve.ipynb` | Colab overnight runner for the learning curve |
 
 ## Run
 
@@ -60,6 +63,21 @@ Cross-validation: per fold, test = that fold (20% of samples), validation = 15% 
 (`split.split_seed: 42`). The pooled result (`<group>/cv_summary.txt`, `cv_metrics.json`,
 `cv_sample_predictions.csv`) has one test prediction for every sample; that is the number to report.
 Any setting can be overridden with `--set key=value`.
+
+### Learning curve (power-law slope)
+
+`split.train_frac` (default 1.0) keeps only a fraction of each fold's training samples; validation
+and test are untouched, so every fraction is scored on the same samples as the full run. The
+subsample is stratified by label combination and nested (25% is inside 50% for the same
+`split.subsample_seed`). `configs/learning_curve/` has 25/50/75% configs for crop and resize and a
+queue file. Run overnight with `colab/run_learning_curve.ipynb`, or:
+
+```bash
+python scripts/run_queue.py configs/learning_curve/queue.txt --paths configs/paths_colab.yaml
+python scripts/analysis/learning_curve.py /content/drive/MyDrive/BaIP/results   # fit after the queue
+```
+
+The 100% points are the existing runs `crop448_cv_v1` and `resize448_cv_v1`.
 
 ---
 

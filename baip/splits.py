@@ -17,6 +17,30 @@ def strata(samples, min_count):
     return out
 
 
+def subsample_train(tr, samples, frac, seed):
+    """Keep a fraction of the training samples, for learning curves. Validation and test are
+    untouched, so every fraction is scored on exactly the same samples as the full run.
+
+    Stratified by exact label combination: each combination keeps round(frac * n) samples
+    (rounding half up), so rare combinations can drop out at small fractions, as they would
+    in a smaller dataset. Nested: with the same seed, the 25% set is contained in the 50% set,
+    and so on, because the order within each combination is fixed by the seed only.
+    frac = 1.0 returns the training set unchanged (the v1 runs).
+    """
+    if frac >= 1.0:
+        return tr
+    if not 0.0 < frac < 1.0:
+        raise ValueError(f"split.train_frac must be in (0, 1], got {frac}")
+    rng = np.random.default_rng(seed)
+    combos = np.array(["".join(str(int(v)) for v in samples[i][1]) for i in tr])
+    keep = []
+    for c in sorted(set(combos)):
+        idx = np.asarray(tr)[combos == c]
+        idx = idx[rng.permutation(len(idx))]
+        keep.extend(idx[: int(np.floor(frac * len(idx) + 0.5))].tolist())
+    return np.array(sorted(keep))
+
+
 def make_split(samples, sc):
     ids = np.array([s[0] for s in samples])
     seed = sc["split_seed"]
@@ -44,7 +68,9 @@ def make_split(samples, sc):
         st_rest = strata([samples[i] for i in rest], min_count=4)
         tr, va = train_test_split(rest, test_size=sc["val_frac"] / (1 - 1 / k),
                                   random_state=seed, stratify=st_rest)
+        tr = subsample_train(tr, samples, sc.get("train_frac", 1.0), sc.get("subsample_seed", 0))
         return {"scheme": scheme, "fold": sc["fold"], "n_folds": k,
+                "train_frac": sc.get("train_frac", 1.0), "subsample_seed": sc.get("subsample_seed", 0),
                 "train": list(ids[tr]), "val": list(ids[va]), "test": list(ids[te])}
 
     raise ValueError(f"unknown split.scheme {scheme}")
