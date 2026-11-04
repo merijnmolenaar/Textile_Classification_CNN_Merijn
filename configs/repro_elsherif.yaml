@@ -1,6 +1,9 @@
 # Task 1: reproduce notebook 02. Target: ~74.6% image-level, ~76.2% sample-level on HIS
 # validation set. Optimistic by design (epoch picked on the same set); not a benchmark.
 name: repro_elsherif
-data: {mode: resize, augment: false}
 split: {scheme: elsherif}
 train: {lr: 1.0e-3, select_on: val_image_acc, tune_threshold: false, amp: false}
+# His notebook matched 735 of the 736 imaged samples; which one was missing is unknown. Excluding
+# any one of s308..s351 reproduces his validation class counts exactly (checked 4 Nov); s315 is
+# the one with an ambiguous label. The validation set then shares >= 135 of 147 samples with his.
+data: {mode: resize, augment: false, exclude: [s315]}

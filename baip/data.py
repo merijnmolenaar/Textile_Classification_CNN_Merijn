@@ -27,15 +27,62 @@ MEAN, STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 
 # ---------------------------------------------------------------- labels and images
 
-def load_labels(xlsx, classes):
+# Words in the composition text -> class. Unknown words raise an error, so a new label
+# file with a new spelling fails loudly instead of silently dropping a fibre.
+FIBRE_ALIASES = {
+    "cotton": "Cotton", "wool": "Wool", "hemp": "Hemp", "linen": "Linen",
+    "elastane": "Elastane", "elastine": "Elastane", "ea": "Elastane",   # EA = ISO 2076 code
+    "polyester": "Polyester", "viscose": "Viscose", "silk": "Silk", "tencel": "Tencel",
+    "pla": "PLA", "polylactide": "PLA", "polyamide": "Polyamide", "poliamide": "Polyamide",
+    "alpaca": "Alpaca", "peatfibre": "Peat fibre",
+    # SE (Seide) = silk and HE = hemp: the only reading that reproduces the class counts
+    # in Elsherif's report (Fig. 9) exactly. Used by s197, s200, s201, s203 ("60cotton 33SE 7HE").
+    "se": "Silk", "he": "Hemp",
+    "natural": None,   # "100hemp natural"
+}
+
+
+def parse_composition(text, classes):
+    """'60cotton 33SE 7HE' -> {'Cotton', 'Silk', 'Hemp'}. Percentages are ignored."""
+    out = set()
+    for w in re.findall(r"[a-z]+", str(text).lower()):
+        if w not in FIBRE_ALIASES:
+            raise ValueError(f"unknown fibre word '{w}' in composition '{text}'; add it to FIBRE_ALIASES")
+        if FIBRE_ALIASES[w]:
+            out.add(FIBRE_ALIASES[w])
+    unknown = out - set(classes)
+    if unknown:
+        raise ValueError(f"composition '{text}' gives classes {unknown} not in data.classes")
+    return out
+
+
+def load_labels(xlsx, classes, overrides=None):
+    """Label table with columns key + one 0/1 column per class. Accepts two formats:
+    - composition text: columns Filename, composition (labels20260217_sort3d_hsi_measurements.xlsx)
+    - matrix: columns Name + one 0/1 column per class (Elsherif's LabelsMatrix.xlsx)
+    Rows without composition are skipped. `overrides` = {sample id: [classes]} replaces parsed labels."""
     df = pd.read_excel(xlsx, sheet_name=0)
-    missing = [c for c in ["Name", *classes] if c not in df.columns]
-    if missing:
-        raise ValueError(f"{xlsx} lacks columns {missing}; found {list(df.columns)}")
-    df["key"] = df["Name"].astype(str).str.lower().str.strip()
-    for c in classes:
-        df[c] = df[c].fillna(0).astype(int)
-    return df
+    if "composition" in df.columns:
+        df = df[df["composition"].notna()].copy()
+        df["key"] = df["Filename"].astype(str).str.lower().str.strip()
+        sets = [parse_composition(t, classes) for t in df["composition"]]
+        for c in classes:
+            df[c] = [int(c in s) for s in sets]
+    elif "Name" in df.columns:
+        missing = [c for c in classes if c not in df.columns]
+        if missing:
+            raise ValueError(f"{xlsx} lacks class columns {missing}")
+        df["key"] = df["Name"].astype(str).str.lower().str.strip()
+        for c in classes:
+            df[c] = df[c].fillna(0).astype(int)
+    else:
+        raise ValueError(f"{xlsx}: expected a 'composition' or a 'Name' column; found {list(df.columns)}")
+    for sid, labs in (overrides or {}).items():
+        i = df.index[df["key"] == sid.lower()]
+        if len(i):
+            for c in classes:
+                df.loc[i, c] = int(c in labs)
+    return df[["key", *classes]].reset_index(drop=True)
 
 
 def index_images(image_dirs):
@@ -58,10 +105,11 @@ def build_index(cfg):
     Classes with no positive sample are dropped, as in his notebook.
     """
     dc = cfg["data"]
-    df = load_labels(dc["labels_xlsx"], dc["classes"])
+    df = load_labels(dc["labels_xlsx"], dc["classes"], dc.get("label_overrides"))
     s2i = index_images(dc["image_dirs"])
     n_img = sum(len(v) for v in s2i.values())
-    keys = [k for k in df["key"] if k in s2i]
+    excl = {s.lower() for s in dc.get("exclude") or []}
+    keys = [k for k in df["key"] if k in s2i and k not in excl]
     unlabelled = sorted(set(s2i) - set(df["key"]))
     lab = df.set_index("key")[dc["classes"]]
     Y = np.stack([lab.loc[k].to_numpy(dtype=np.float32) for k in keys])
@@ -71,6 +119,7 @@ def build_index(cfg):
     Y = Y[:, keep]
     samples = [(k, Y[i], s2i[k]) for i, k in enumerate(keys)]
     print(f"{n_img} images | {len(s2i)} sample ids | {len(samples)} matched to labels"
+          + (f" | excluded: {sorted(excl)}" if excl else "")
           + (f" | unlabelled: {unlabelled}" if unlabelled else "")
           + (f" | dropped empty classes: {dropped}" if dropped else ""))
     return samples, classes

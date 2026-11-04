@@ -16,7 +16,15 @@ DEFAULTS = {
     "seed": 42,
     "data": {
         "image_dirs": [],           # one or more folders with S###_k.jpg
-        "labels_xlsx": None,        # LabelsMatrix.xlsx
+        "labels_xlsx": None,        # composition-text file or Elsherif-style label matrix
+        # Samples whose composition text is ambiguous. These follow Elsherif's labelling, which
+        # was reconstructed from the class counts in his report (Fig. 9); see notes/decisions.md.
+        "label_overrides": {
+            "s731": ["Wool"], "s734": ["Wool"], "s735": ["Wool"], "s736": ["Wool"],   # "100cotton/100wool", double sided
+            "s737": ["Wool"], "s738": ["Wool"],                                       # same, no images
+            "s315": ["Wool"],                                                         # "?hemp ?wool"
+        },
+        "exclude": [],              # sample ids left out entirely
         "classes": ["Cotton", "Wool", "Hemp", "Linen", "Elastane", "Polyester",
                     "Viscose", "Silk", "Tencel", "PLA", "Polyamide", "Alpaca", "Peat fibre"],
         "um_per_px": 7.58,          # logged with every run; the RQ is about this number

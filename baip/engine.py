@@ -160,6 +160,10 @@ def run(cfg):
           + (" (uncommitted changes!)" if env["dirty"] else ""))
 
     samples, classes = D.build_index(cfg)
+    with open(run_dir / "labels.csv", "w", newline="") as fh:   # exact labels this run used
+        w = csv.writer(fh)
+        w.writerow(["sample", *classes, "n_images"])
+        w.writerows([[sid, *y.astype(int), len(paths)] for sid, y, paths in samples])
     split = get_split(samples, cfg["split"])
     table, counts = describe(split, samples, classes)
     print(table)
