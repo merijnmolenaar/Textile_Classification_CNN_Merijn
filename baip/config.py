@@ -58,7 +58,7 @@ DEFAULTS = {
         "threshold": 0.5,
         "tune_threshold": True,         # pick a global threshold on validation, apply to test
         "pos_weight": False,            # class-weighted BCE (later experiment)
-        "amp": True,                    # bf16 autocast on CUDA only; ignored on MPS/CPU
+        "amp": True,                    # CUDA only: bf16 (A100/L4) or fp16 + loss scaling (T4); ignored on MPS/CPU
         "eval_batch_tiles": 32,         # tiles per forward pass at evaluation (memory only)
         "max_batches": None,            # smoke test / timing: stop each epoch early
     },

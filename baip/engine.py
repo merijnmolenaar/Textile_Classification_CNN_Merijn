@@ -54,11 +54,12 @@ def git_info():
         return {"commit": None, "dirty": None}
 
 
-def env_info(device):
+def env_info(device, cfg=None):
     info = {"device": str(device), "torch": torch.__version__, "python": platform.python_version(),
             "host": platform.node(), **git_info()}
     if device.type == "cuda":
         info["gpu"] = torch.cuda.get_device_name(0)
+    info["amp"] = str(amp_dtype(device, cfg)) if cfg else None
     return info
 
 
@@ -82,12 +83,20 @@ def make_loader(recs, cfg, train, seed):
                       worker_init_fn=_worker_init, generator=g)
 
 
+def amp_dtype(device, cfg):
+    """Mixed precision on CUDA only: bf16 on A100/L4/H100 and newer (compute capability 8+),
+    fp16 with loss scaling on older GPUs such as the free-tier T4, which has no bf16."""
+    if not (cfg["train"]["amp"] and device.type == "cuda"):
+        return None
+    return torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
+
+
 def _autocast(device, cfg):
-    on = cfg["train"]["amp"] and device.type == "cuda"
-    return torch.autocast("cuda", dtype=torch.bfloat16, enabled=on) if on else torch.autocast("cpu", enabled=False)
+    dt = amp_dtype(device, cfg)
+    return torch.autocast("cuda", dtype=dt) if dt else torch.autocast("cpu", enabled=False)
 
 
-def train_epoch(model, loader, opt, crit, device, cfg):
+def train_epoch(model, loader, opt, crit, device, cfg, scaler=None):
     model.train()
     tot, n, hits = 0.0, 0, 0
     t = cfg["train"]["threshold"]
@@ -101,8 +110,13 @@ def train_epoch(model, loader, opt, crit, device, cfg):
             logits = model(x)
         loss = crit(logits.float(), y)
         opt.zero_grad(set_to_none=True)
-        loss.backward()
-        opt.step()
+        if scaler is not None:   # fp16: scale the loss so small gradients do not underflow
+            scaler.scale(loss).backward()
+            scaler.step(opt)
+            scaler.update()
+        else:
+            loss.backward()
+            opt.step()
         tot += loss.item() * len(y)
         n += len(y)
         hits += ((torch.sigmoid(logits.float()) > t) == (y > 0.5)).all(1).sum().item()
@@ -159,7 +173,7 @@ def run(cfg):
         ckpt = Path(cfg["ckpt_dir"]) / f"{stamp}_{cfg['name']}.pt"
     run_dir.mkdir(parents=True, exist_ok=True)
     ckpt.parent.mkdir(parents=True, exist_ok=True)
-    env = env_info(device)
+    env = env_info(device, cfg)
     print(f"run {run_dir.name} | device {env['device']} {env.get('gpu', '')} | commit {str(env['commit'])[:8]}"
           + (" (uncommitted changes!)" if env["dirty"] else ""))
 
@@ -190,13 +204,14 @@ def run(cfg):
     opt = Lamb(model.parameters(), lr=tc["lr"], weight_decay=tc["weight_decay"])
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=tc["epochs"], eta_min=tc["eta_min"])
 
+    scaler = torch.amp.GradScaler("cuda") if amp_dtype(device, cfg) == torch.float16 else None
     hist, best, best_ep, since = [], -1.0, 0, 0
     t_start = time.time()
     print(f"\n{'ep':>3} {'lr':>9} {'trLoss':>7} {'trAcc':>6} {'vaLoss':>7} {'vaImg':>6} {'vaSmp':>6} {'sec':>5}")
     for ep in range(1, tc["epochs"] + 1):
         t0 = time.time()
         lr = opt.param_groups[0]["lr"]
-        tl, ta = train_epoch(model, tr, opt, crit, device, cfg)
+        tl, ta = train_epoch(model, tr, opt, crit, device, cfg, scaler)
         vp = predict(model, va, device, cfg, crit)
         sched.step()
         ev = M.evaluate(vp, classes, tc["threshold"])
