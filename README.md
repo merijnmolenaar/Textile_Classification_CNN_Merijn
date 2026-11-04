@@ -8,7 +8,7 @@ The notebook pipeline (`02_Microscope_...ipynb`) is ported to plain Python in `b
    training, a 5 x 3 grid of tiles covering the whole frame at evaluation, probabilities averaged per image
    and then per sample.
 2. **An untouched test set.** Splits are by sample (all images of a sample in one partition), stratified on
-   the label combination: 70/15/15 hold-out or k-fold CV. Validation picks the epoch and the threshold; the
+   the label combination: 5-fold cross-validation (or a 70/15/15 hold-out). Validation picks the epoch and the threshold; the
    test set is scored once.
 3. **Logging.** Every run writes config, split, per-epoch history, metrics (image and sample level, per fibre,
    bootstrap 95% CI) and predictions to `results/<run>/`, plus one line in `results/runs.csv` with the git commit.
@@ -23,25 +23,43 @@ The notebook pipeline (`02_Microscope_...ipynb`) is ported to plain Python in `b
 | `baip/model.py` | DenseNet-121 + head, LAMB optimiser |
 | `baip/metrics.py` | exact-match, F1, per-fibre P/R, threshold tuning, bootstrap CI |
 | `baip/engine.py` | training loop, evaluation, run logging |
-| `scripts/train.py` | command-line entry point |
+| `baip/cv.py` | pools the test predictions of all folds into one result |
+| `scripts/train.py` | one run |
+| `scripts/run_cv.py` | k-fold cross-validation with resume, then pooling |
 | `configs/` | `paths_*.yaml` (where data lives) and one yaml per experiment |
 | `colab/run_experiment.ipynb` | Colab runner (GPU) |
 
 ## Run
 
 ```bash
-# Mac (only for smoke tests: batch 16 at 448 px does not fit in 16 GB unified memory)
-python scripts/train.py configs/crop448_holdout.yaml --paths configs/paths_local.yaml \
-    --set train.epochs=2 --set train.max_batches=3 --set train.batch_size=4 \
-    --set train.eval_batch_tiles=8 --set name=smoke --set out_dir=results/smoke
+# 5-fold cross-validation (the benchmark). Finished folds are skipped, so rerun the same command to resume.
+python scripts/run_cv.py configs/crop448_cv.yaml --paths configs/paths_colab.yaml
+python scripts/run_cv.py configs/crop448_cv.yaml --paths configs/paths_colab.yaml --folds 0 1   # part of the folds
+python scripts/run_cv.py configs/crop448_cv.yaml --paths configs/paths_colab.yaml --aggregate-only
 
-# Colab / GPU: open colab/run_experiment.ipynb, pick EXPERIMENT, run all cells
+# single run (reproduction of Elsherif, or a quick check)
+python scripts/train.py configs/repro_elsherif.yaml --paths configs/paths_colab.yaml
+
+# Mac: smoke tests only (batch 16 at 448 px does not fit in 16 GB)
+python scripts/run_cv.py configs/crop448_cv.yaml --paths configs/paths_local.yaml --folds 0 \
+    --set train.epochs=1 --set train.max_batches=2 --set train.batch_size=4 \
+    --set train.eval_batch_tiles=8 --set out_dir=results/smoke
 ```
 
-Experiments: `repro_elsherif` (Task 1, should land near 74.6% image / 76.2% sample on his validation set),
-`resize448_holdout` (Task 2, honest baseline), `crop448_holdout` (Task 3, crops). Any setting can be
-overridden with `--set key=value`, e.g. `--set train.lr=1e-4`, `--set data.augment=true`,
-`--set split.scheme=cv --set split.fold=2`.
+On Colab: open `colab/run_experiment.ipynb`, choose the experiments, run all cells.
+
+| Experiment | What |
+|---|---|
+| `repro_elsherif` | Task 1. Elsherif's 80/20 split, no test set. Should land near 74.6% image / 76.2% sample level |
+| `resize448_cv` | Task 2. Honest baseline: his resize pipeline, 5-fold CV by sample |
+| `crop448_cv` | Task 3. Native-resolution 448 x 448 crops, same folds |
+| `crop1080_cv` | Larger context: 1080 x 1080 crops, same folds. Needs a 40 GB+ GPU at batch 16 |
+
+Cross-validation: per fold, test = that fold (20% of samples), validation = 15% of samples from the rest
+(picks epoch and threshold), train = the remaining ~65%. All `*_cv` experiments use the same folds
+(`split.split_seed: 42`). The pooled result (`<group>/cv_summary.txt`, `cv_metrics.json`,
+`cv_sample_predictions.csv`) has one test prediction for every sample; that is the number to report.
+Any setting can be overridden with `--set key=value`.
 
 ---
 

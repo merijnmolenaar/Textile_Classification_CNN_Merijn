@@ -1,0 +1,9 @@
+# Larger context: native-resolution 1080x1080 crops (the largest square in a 1920x1080 frame).
+# Evaluation: 2 tiles per image (left and right, overlapping by 240 px). ~5.8x the compute of a
+# 448 tile. Memory: batch 16 needs roughly 30+ GB in bf16, so use an A100 (40 GB) or an
+# RTX Pro 6000 (96 GB); on a 24 GB L4 lower train.batch_size and note it in the report.
+# Same folds as the other *_cv experiments.
+name: crop1080_cv
+data: {mode: crop, img_size: 1080, augment: false, eval_tiles: [2, 1], train_crops_per_image: 1}
+split: {scheme: cv, n_folds: 5, val_frac: 0.15, split_seed: 42}
+train: {lr: 1.0e-3, select_on: val_sample_acc, tune_threshold: true, eval_batch_tiles: 16}

@@ -151,9 +151,13 @@ def run(cfg):
     cfg = D.cache_locally(cfg)
 
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    run_dir = Path(cfg["out_dir"]) / f"{stamp}_{cfg['name']}"
+    if cfg.get("run_dir"):   # set by scripts/run_cv.py: <group>/fold<k>
+        run_dir = Path(cfg["run_dir"])
+        ckpt = Path(cfg["ckpt_dir"]) / f"{run_dir.parent.name}_{run_dir.name}.pt"
+    else:
+        run_dir = Path(cfg["out_dir"]) / f"{stamp}_{cfg['name']}"
+        ckpt = Path(cfg["ckpt_dir"]) / f"{stamp}_{cfg['name']}.pt"
     run_dir.mkdir(parents=True, exist_ok=True)
-    ckpt = Path(cfg["ckpt_dir"]) / f"{stamp}_{cfg['name']}.pt"
     ckpt.parent.mkdir(parents=True, exist_ok=True)
     env = env_info(device)
     print(f"run {run_dir.name} | device {env['device']} {env.get('gpu', '')} | commit {str(env['commit'])[:8]}"
@@ -239,7 +243,7 @@ def run(cfg):
     # one summary line per run, appended to results/runs.csv
     head = "test_at_val_threshold" if te is not None else "val_at_0.5"
     s = out[head]["sample"]
-    row = {"run": run_dir.name, "name": cfg["name"], "commit": str(env["commit"])[:8], "dirty": env["dirty"],
+    row = {"run": (f"{run_dir.parent.name}/{run_dir.name}" if cfg.get("run_dir") else run_dir.name), "name": cfg["name"], "commit": str(env["commit"])[:8], "dirty": env["dirty"],
            "device": env.get("gpu", env["device"]), "mode": cfg["data"]["mode"], "split": cfg["split"]["scheme"],
            "fold": cfg["split"]["fold"] if cfg["split"]["scheme"] == "cv" else None, "lr": tc["lr"], "augment": cfg["data"]["augment"],
            "reported_on": head, "threshold": out[head]["threshold"], "best_epoch": best_ep,

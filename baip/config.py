@@ -63,6 +63,7 @@ DEFAULTS = {
         "max_batches": None,            # smoke test / timing: stop each epoch early
     },
     "out_dir": "results",
+    "run_dir": None,                # set per fold by scripts/run_cv.py; normally leave empty
     "ckpt_dir": "checkpoints",
 }
 

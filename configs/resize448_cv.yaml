@@ -1,0 +1,8 @@
+# Task 2: honest baseline. Elsherif's pipeline (full frame squashed to 448x448, ~32 x 18 um/px),
+# 5-fold cross-validation by sample. Per fold: test = that fold (20%), validation = 15% of all
+# samples taken from the rest (picks epoch and threshold), train = the remaining ~65%.
+# Run with scripts/run_cv.py; the pooled result covers every sample exactly once.
+name: resize448_cv
+data: {mode: resize, augment: false}
+split: {scheme: cv, n_folds: 5, val_frac: 0.15, split_seed: 42}
+train: {lr: 1.0e-3, select_on: val_sample_acc, tune_threshold: true}
