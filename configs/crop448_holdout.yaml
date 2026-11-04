@@ -1,0 +1,8 @@
+# Task 3, change 1: native-resolution 448x448 crops (7.58 um/px kept) instead of resizing.
+# Training: one random crop per image per epoch. Evaluation: 5x3 evenly spaced tiles per
+# image (covers the whole 1920x1080 frame), tile probabilities averaged per image, then per sample.
+# Everything else identical to resize448_holdout, same split.
+name: crop448_holdout
+data: {mode: crop, augment: false, eval_tiles: [5, 3], train_crops_per_image: 1}
+split: {scheme: holdout, val_frac: 0.15, test_frac: 0.15, split_seed: 42}
+train: {lr: 1.0e-3, select_on: val_sample_acc, tune_threshold: true}

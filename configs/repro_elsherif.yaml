@@ -1,0 +1,6 @@
+# Task 1: reproduce notebook 02. Target: ~74.6% image-level, ~76.2% sample-level on HIS
+# validation set. Optimistic by design (epoch picked on the same set); not a benchmark.
+name: repro_elsherif
+data: {mode: resize, augment: false}
+split: {scheme: elsherif}
+train: {lr: 1.0e-3, select_on: val_image_acc, tune_threshold: false, amp: false}

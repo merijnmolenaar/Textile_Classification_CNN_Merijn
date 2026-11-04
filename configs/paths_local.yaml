@@ -1,0 +1,9 @@
+# Merijn's MacBook. Put LabelsMatrix.xlsx in ~/Desktop/BaIP/data/
+data:
+  image_dirs:
+    - "/Users/merijnmolenaar/Desktop/BaIP/report Elsherif last year/Data last year/Images"
+    - "/Users/merijnmolenaar/Desktop/BaIP/report Elsherif last year/Data last year/Images-2"
+  labels_xlsx: "/Users/merijnmolenaar/Desktop/BaIP/data/LabelsMatrix.xlsx"
+  num_workers: 4
+out_dir: "/Users/merijnmolenaar/Desktop/BaIP/results"
+ckpt_dir: "/Users/merijnmolenaar/Desktop/BaIP/checkpoints"

@@ -1,0 +1,17 @@
+# data, weights and run outputs stay out of git
+*.pt
+*.pth
+*.zip
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+LabelsMatrix*.xlsx
+checkpoints/
+results/
+data/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.ipynb_checkpoints/

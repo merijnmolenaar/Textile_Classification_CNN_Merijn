@@ -1,0 +1,15 @@
+# Google Colab. Upload to Google Drive as:
+#   MyDrive/BaIP/data/Images/      (all S###_k.jpg; Images-2 may be merged in or kept separate)
+#   MyDrive/BaIP/data/Images-2/
+#   MyDrive/BaIP/data/LabelsMatrix.xlsx
+# Images are copied once per session to the Colab local disk (cache_dir); reading from Drive
+# every epoch is several times slower.
+data:
+  image_dirs:
+    - "/content/drive/MyDrive/BaIP/data/Images"
+    - "/content/drive/MyDrive/BaIP/data/Images-2"
+  labels_xlsx: "/content/drive/MyDrive/BaIP/data/LabelsMatrix.xlsx"
+  cache_dir: "/content/data"
+  num_workers: 8
+out_dir: "/content/drive/MyDrive/BaIP/results"
+ckpt_dir: "/content/drive/MyDrive/BaIP/checkpoints"
