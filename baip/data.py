@@ -168,16 +168,29 @@ def resize_transforms(S, augment, a):
     return train_tf, eval_tf
 
 
+class RandomRot90:
+    """Rotate by 0, 90, 180 or 270 degrees. On a square crop this leaves no empty corners,
+    unlike a free rotation (which fills the corners with black)."""
+    def __call__(self, im):
+        k = int(torch.randint(4, (1,)))
+        return im.rotate(90 * k) if k else im
+
+
 def crop_train_transform(S, augment, a):
     # No rescaling in crop mode: a random-resized crop would change um/px, which is the
     # variable under study. Only flips, rotation, colour jitter and noise.
+    # rotation_deg 0 switches free rotation off; noise_std 0 switches noise off.
     if not augment:
         return T.Compose([T.RandomCrop(S), *_norm()])
-    return T.Compose([
-        T.RandomCrop(S), T.RandomHorizontalFlip(), T.RandomVerticalFlip(),
-        T.RandomRotation(a["rotation_deg"]),
-        T.ColorJitter(contrast=a["contrast"], saturation=a["saturation"]),
-        *_norm(), AddGaussianNoise(a["noise_std"])])
+    geo = [T.RandomCrop(S), T.RandomHorizontalFlip(), T.RandomVerticalFlip()]
+    if a.get("rot90"):
+        geo.append(RandomRot90())
+    if a.get("rotation_deg"):
+        geo.append(T.RandomRotation(a["rotation_deg"]))
+    colour = T.ColorJitter(brightness=a.get("brightness", 0), contrast=a.get("contrast", 0),
+                           saturation=a.get("saturation", 0), hue=a.get("hue", 0))
+    noise = [AddGaussianNoise(a["noise_std"])] if a.get("noise_std") else []
+    return T.Compose([*geo, colour, *_norm(), *noise])
 
 
 def tile_boxes(W, H, S, cols, rows):

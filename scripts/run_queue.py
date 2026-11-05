@@ -1,10 +1,11 @@
-"""Run a list of CV experiments one after another (e.g. overnight on Colab).
+"""Run a list of experiments one after another (e.g. overnight on Colab).
 
 Each line of the queue file is an experiment config (blank lines and # comments ignored).
-Every experiment runs as its own `scripts/run_cv.py` process, so:
+CV configs (split.scheme: cv) run as a `scripts/run_cv.py` process; single-split configs as a
+`scripts/train.py` process writing to <out_dir>/holdout/<name>/. So:
   - a failing experiment is logged and the queue moves on to the next one;
-  - finished folds are skipped, so after a disconnect you start the same queue again and it
-    continues where it stopped (the interrupted fold restarts from epoch 1).
+  - finished folds and finished single runs are skipped, so after a disconnect you start the
+    same queue again and it continues where it stopped (an interrupted run restarts from epoch 1).
 
 Output, all under <out_dir> from the paths file:
   queue_logs/<experiment>.log   full console output of that experiment (unbuffered)
@@ -28,6 +29,20 @@ ROOT = Path(__file__).resolve().parents[1]
 def read_queue(path):
     lines = [ln.split("#", 1)[0].strip() for ln in Path(path).read_text().splitlines()]
     return [ln for ln in lines if ln]
+
+
+def command(exp, paths, out_dir):
+    """CV configs (split.scheme: cv) run through run_cv.py, which skips finished folds.
+    Other configs (one fixed split) run through train.py into <out_dir>/holdout/<name>/;
+    returns None if that run already has metrics.json."""
+    cfg = yaml.safe_load((ROOT / exp).read_text()) or {}
+    if (cfg.get("split") or {}).get("scheme") == "cv":
+        return [sys.executable, "-u", str(ROOT / "scripts/run_cv.py"), str(ROOT / exp), "--paths", paths]
+    run_dir = out_dir / "holdout" / cfg.get("name", Path(exp).stem)
+    if (run_dir / "metrics.json").exists():
+        return None
+    return [sys.executable, "-u", str(ROOT / "scripts/train.py"), str(ROOT / exp), "--paths", paths,
+            "--set", f"run_dir={run_dir}"]
 
 
 def main():
@@ -61,11 +76,17 @@ def main():
         t0 = time.time()
         start = datetime.now()
         print(f"\n[{i}/{len(exps)}] {name}  started {start:%H:%M}  -> {log}", flush=True)
+        cmd = command(e, a.paths, out_dir)
+        if cmd is None:
+            print(f"    already finished, skipped", flush=True)
+            with open(status, "a") as fh:
+                fh.write(f"{name:28s} skipped (already finished)\n")
+            n_ok += 1
+            continue
         with open(log, "a") as fh:
             fh.write(f"\n===== {start:%Y-%m-%d %H:%M:%S} {e}\n")
             fh.flush()
-            rc = subprocess.call([sys.executable, "-u", str(ROOT / "scripts/run_cv.py"), str(ROOT / e),
-                                  "--paths", a.paths], stdout=fh, stderr=subprocess.STDOUT, cwd=ROOT)
+            rc = subprocess.call(cmd, stdout=fh, stderr=subprocess.STDOUT, cwd=ROOT)
         mins = (time.time() - t0) / 60
         verdict = "OK" if rc == 0 else f"FAILED (exit {rc})"
         n_ok += rc == 0

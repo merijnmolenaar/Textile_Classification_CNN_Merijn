@@ -1,0 +1,16 @@
+# Step 4: as crop448_ho_base, plus augmentation on every training image (not only rare fibres,
+# so "edited look" cannot become a cue for a rare fibre). Validation and test are never augmented.
+# Flips and 90-degree rotations (fabric orientation is arbitrary; no free rotation, which leaves
+# black corners), brightness/contrast (lighting), saturation and a small hue shift (dye colour).
+# No rescaling (um/px is the variable under study), no noise.
+name: crop448_ho_aug
+data:
+  mode: crop
+  img_size: 448
+  eval_tiles: [5, 3]
+  train_crops_per_image: 1
+  exclude_classes: [Peat fibre, Polyamide, Alpaca]
+  augment: true
+  aug: {rot90: true, rotation_deg: 0, brightness: 0.2, contrast: 0.2, saturation: 0.2, hue: 0.03, noise_std: 0}
+split: {scheme: holdout, split_file: splits/holdout_70_15_15_v1.json}
+train: {lr: 1.0e-3, select_on: val_sample_acc, tune_threshold: true, oversample: null}

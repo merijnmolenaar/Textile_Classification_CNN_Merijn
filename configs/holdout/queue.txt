@@ -1,0 +1,5 @@
+# exp/holdout-aug-rare: steps 3, 4 and 5, run top to bottom by scripts/run_queue.py.
+# Results: <out_dir>/holdout/<name>/, weights: <ckpt_dir>/holdout_<name>.pt
+configs/holdout/crop448_ho_base.yaml
+configs/holdout/crop448_ho_aug.yaml
+configs/holdout/crop448_ho_aug_os.yaml

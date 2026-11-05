@@ -39,7 +39,9 @@ DEFAULTS = {
         "train_crops_per_image": 1, # crop mode: random crops per image per epoch
         "augment": False,
         "aug": {"crop_scale": [0.6, 1.0], "crop_ratio": [0.9, 1.1], "rotation_deg": 15,
-                "contrast": 0.2, "saturation": 0.2, "noise_std": 0.01},
+                "contrast": 0.2, "saturation": 0.2, "noise_std": 0.01,
+                # crop mode only (off by default, so earlier configs behave as before):
+                "rot90": False, "brightness": 0.0, "hue": 0.0},
         "num_workers": 4,
         "cache_dir": None,          # Colab: copy images to local disk first (much faster than Drive)
     },
@@ -62,6 +64,12 @@ DEFAULTS = {
         "threshold": 0.5,
         "tune_threshold": True,         # pick a global threshold on validation, apply to test
         "pos_weight": False,            # class-weighted BCE (later experiment)
+        # Rare-fibre oversampling (repeat factor sampling, Gupta et al. 2019, LVIS), training only.
+        # Per class c: factor = clip((f_max / f_c) ** power, 1, cap), f = share of training samples
+        # with that fibre; per sample: the largest factor of its fibres. Images are drawn with
+        # replacement in proportion to that factor; the epoch length stays the same.
+        # Example: {power: 0.5, cap: 5}. None = off.
+        "oversample": None,
         "amp": True,                    # CUDA only: bf16 (A100/L4) or fp16 + loss scaling (T4); ignored on MPS/CPU
         "eval_batch_tiles": 32,         # tiles per forward pass at evaluation (memory only)
         "max_batches": None,            # smoke test / timing: stop each epoch early

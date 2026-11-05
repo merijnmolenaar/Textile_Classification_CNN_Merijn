@@ -1,0 +1,13 @@
+# Step 3 (exp/holdout-aug-rare): baseline on the fixed 70/15/15 split, 10 classes.
+# Same training settings as crop448_cv_v1; only the split and the classes differ.
+# Split: splits/holdout_70_15_15_v1.json (504/111/111 samples), made by scripts/make_splits.py.
+name: crop448_ho_base
+data:
+  mode: crop
+  img_size: 448
+  eval_tiles: [5, 3]
+  train_crops_per_image: 1
+  exclude_classes: [Peat fibre, Polyamide, Alpaca]
+  augment: false
+split: {scheme: holdout, split_file: splits/holdout_70_15_15_v1.json}
+train: {lr: 1.0e-3, select_on: val_sample_acc, tune_threshold: true, oversample: null}

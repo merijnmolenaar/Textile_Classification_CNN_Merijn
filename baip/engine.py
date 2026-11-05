@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 
 from . import data as D
 from . import metrics as M
@@ -70,7 +70,24 @@ def _collate(batch):
     return torch.stack(xs), torch.stack(ys), list(sids), list(paths)
 
 
-def make_loader(recs, cfg, train, seed):
+def repeat_factors(recs, classes, power, cap):
+    """Repeat factor sampling over training samples. Returns (per-image weight, report dict).
+    Class factor = clip((f_max / f_c) ** power, 1, cap); sample factor = max over its fibres."""
+    ys = {sid: y for _, y, sid in recs}
+    Y = np.stack(list(ys.values())).astype(np.float64)
+    f = Y.mean(0)
+    rc = np.clip((f.max() / np.maximum(f, 1e-12)) ** power, 1.0, cap)
+    rs = {sid: float(rc[y == 1].max()) for sid, y in ys.items()}
+    w = np.array([rs[sid] for _, _, sid in recs])
+    draws = (Y * np.array([rs[s] for s in ys])[:, None]).sum(0) / sum(rs.values()) * len(ys)
+    report = {"power": power, "cap": cap,
+              "class_factor": dict(zip(classes, rc.round(3).tolist())),
+              "train_samples": dict(zip(classes, Y.sum(0).astype(int).tolist())),
+              "expected_sample_draws_per_epoch": dict(zip(classes, draws.round(1).tolist()))}
+    return w, report
+
+
+def make_loader(recs, cfg, train, seed, weights=None):
     ds = D.ImageDataset(recs, cfg, train)
     bs = cfg["train"]["batch_size"]
     if not train:   # cap the number of tiles per forward pass at evaluation
@@ -78,7 +95,12 @@ def make_loader(recs, cfg, train, seed):
     nw = cfg["data"]["num_workers"]
     g = torch.Generator()
     g.manual_seed(seed)
-    return DataLoader(ds, batch_size=bs, shuffle=train, num_workers=nw, collate_fn=_collate,
+    sampler = None
+    if train and weights is not None:   # oversampling: draw with replacement, same epoch length
+        w = torch.as_tensor(np.tile(weights, ds.reps), dtype=torch.double)
+        sampler = WeightedRandomSampler(w, num_samples=len(ds), replacement=True, generator=g)
+    return DataLoader(ds, batch_size=bs, shuffle=train and sampler is None, sampler=sampler,
+                      num_workers=nw, collate_fn=_collate,
                       pin_memory=torch.cuda.is_available(), persistent_workers=nw > 0,
                       worker_init_fn=_worker_init, generator=g)
 
@@ -191,7 +213,14 @@ def run(cfg):
     (run_dir / "split.json").write_text(json.dumps({**split, "class_counts": counts}, indent=1))
     (run_dir / "env.json").write_text(json.dumps(env, indent=1))
 
-    tr = make_loader(D.records(samples, split["train"]), cfg, True, cfg["seed"])
+    tr_recs = D.records(samples, split["train"])
+    weights = None
+    if cfg["train"].get("oversample"):
+        os_cfg = cfg["train"]["oversample"]
+        weights, os_report = repeat_factors(tr_recs, classes, os_cfg["power"], os_cfg["cap"])
+        (run_dir / "oversample.json").write_text(json.dumps(os_report, indent=1))
+        print("oversampling (expected sample draws per epoch):", os_report["expected_sample_draws_per_epoch"])
+    tr = make_loader(tr_recs, cfg, True, cfg["seed"], weights)
     va = make_loader(D.records(samples, split["val"]), cfg, False, cfg["seed"])
     te = make_loader(D.records(samples, split["test"]), cfg, False, cfg["seed"]) if split["test"] else None
 
