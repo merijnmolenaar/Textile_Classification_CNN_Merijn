@@ -41,6 +41,57 @@ def subsample_train(tr, samples, frac, seed):
     return np.array(sorted(keep))
 
 
+def split_rarest_fibre(samples, classes, fracs=(0.70, 0.15, 0.15), seed=42, min_blend=5):
+    """Train/val/test split by sample, stratified on the rarest fibre of each sample.
+
+    1. Each sample gets the group of its rarest fibre (by count over all samples), so
+       "cotton + elastane" goes with elastane and "wool + PLA" with PLA.
+    2. Within that group, every blend (exact label combination) with >= `min_blend` samples
+       is split on its own, so it appears in train, val and test. Smaller blends are pooled
+       within the group.
+    3. Each unit gets round(frac * n) samples for val and test (at least 1 each when n >= 3),
+       the rest go to train. Samples are interleaved over blends and dealt by remaining need,
+       so a pooled unit spreads its blends over the partitions.
+    Returns {"train": [...], "val": [...], "test": [...]} with sample ids. Deterministic for a seed.
+    """
+    ids = [s[0] for s in samples]
+    Y = np.stack([s[1] for s in samples]).astype(int)
+    count = Y.sum(0)
+    combo = [" + ".join(c for c, v in zip(classes, y) if v) for y in Y]
+    rarest = [min((i for i in range(len(classes)) if y[i]), key=lambda i: count[i]) for y in Y]
+    n_combo = Counter(combo)
+    unit = [f"{classes[r]} | {c if n_combo[c] >= min_blend else 'small blends'}" for r, c in zip(rarest, combo)]
+
+    rng = np.random.default_rng(seed)
+    fr = np.asarray(fracs, dtype=float)
+    parts = ("train", "val", "test")
+    out = {p: [] for p in parts}
+    ids_a, combo_a, unit_a = np.array(ids), np.array(combo), np.array(unit)
+    for u in sorted(set(unit)):
+        members = ids_a[unit_a == u]
+        mcombo = combo_a[unit_a == u]
+        queues = [list(rng.permutation(members[mcombo == c])) for c in sorted(set(mcombo))]
+        order = []
+        while any(queues):
+            for q in queues:
+                if q:
+                    order.append(q.pop())
+        n = len(order)
+        target = np.floor(fr * n + 0.5).astype(int)
+        if n >= 3:
+            target[1:] = np.maximum(target[1:], 1)
+        target[0] = n - target[1:].sum()
+        got = np.zeros(3, int)
+        for sid in order:
+            need = (target - got) / np.maximum(target, 1)
+            need[got >= target] = -9
+            k = int(np.argmax(need))
+            got[k] += 1
+            out[parts[k]].append(str(sid))
+    order_of = {s: i for i, s in enumerate(ids)}
+    return {p: sorted(v, key=order_of.get) for p, v in out.items()}
+
+
 def make_split(samples, sc):
     ids = np.array([s[0] for s in samples])
     seed = sc["split_seed"]
@@ -80,6 +131,13 @@ def get_split(samples, sc):
     if sc.get("split_file"):
         with open(sc["split_file"]) as fh:
             split = json.load(fh)
+        # a saved split must cover exactly the samples of this run (same label file, same exclusions)
+        have = {s[0] for s in samples}
+        listed = set(split["train"]) | set(split["val"]) | set(split["test"])
+        if listed != have:
+            raise ValueError(f"split_file {sc['split_file']} does not match the samples of this run: "
+                             f"{len(listed - have)} listed but not loaded (e.g. {sorted(listed - have)[:5]}), "
+                             f"{len(have - listed)} loaded but not listed (e.g. {sorted(have - listed)[:5]})")
     else:
         split = make_split(samples, sc)
     parts = [set(split[k]) for k in ("train", "val", "test")]

@@ -27,7 +27,9 @@ The notebook pipeline (`02_Microscope_...ipynb`) is ported to plain Python in `b
 | `scripts/train.py` | one run |
 | `scripts/run_cv.py` | k-fold cross-validation with resume, then pooling |
 | `scripts/run_queue.py` | runs a list of CV experiments one after another (overnight), one log per experiment |
-| `scripts/analysis/` | `compare_runs.py` (paired comparison + McNemar), `learning_curve.py` (power-law fit), `one_vs_three_photos.py`, `plot_history.py` |
+| `scripts/make_splits.py` | makes a fixed train/val/test split by sample (stratified on the rarest fibre, then on the blend), checks it and saves it to `splits/` |
+| `splits/` | fixed splits, committed; experiments read them with `split.split_file` and never re-split |
+| `scripts/analysis/` | `compare_runs.py` (paired comparison + McNemar), `learning_curve.py` (power-law fit), `blend_breakdown.py` (single fibre vs blends), `one_vs_three_photos.py`, `plot_history.py` |
 | `configs/` | `paths_*.yaml` (where data lives) and one yaml per experiment; `configs/learning_curve/` for the learning curve |
 | `colab/run_experiment.ipynb` | Colab runner (GPU) |
 | `colab/run_learning_curve.ipynb` | Colab overnight runner for the learning curve |
@@ -78,6 +80,20 @@ python scripts/analysis/learning_curve.py /content/drive/MyDrive/BaIP/results   
 ```
 
 The 100% points are the existing runs `crop448_cv_v1` and `resize448_cv_v1`.
+
+### Fixed hold-out split with 10 classes (branch `exp/holdout-aug-rare`)
+
+`data.exclude_classes: [Peat fibre, Polyamide, Alpaca]` leaves out the 10 samples containing these
+fibres (2, 4 and 4 samples; too few to train or test) without changing the label file: 726 samples,
+10 classes. `splits/holdout_70_15_15_v1.json` (504 / 111 / 111 samples) was made once with
+
+```bash
+python scripts/make_splits.py --paths configs/paths_local.yaml \
+    --exclude-classes "Peat fibre,Polyamide,Alpaca" --out splits/holdout_70_15_15_v1.json
+```
+
+A config uses it with `split: {split_file: splits/holdout_70_15_15_v1.json}` plus the same
+`data.exclude_classes`; the run stops if the split and the loaded samples do not match.
 
 ---
 
