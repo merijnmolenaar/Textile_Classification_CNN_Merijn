@@ -33,6 +33,7 @@ The notebook pipeline (`02_Microscope_...ipynb`) is ported to plain Python in `b
 | `configs/` | `paths_*.yaml` (where data lives) and one yaml per experiment; `configs/learning_curve/` for the learning curve |
 | `colab/run_experiment.ipynb` | Colab runner (GPU) |
 | `colab/run_learning_curve.ipynb` | Colab overnight runner for the learning curve |
+| `colab/run_holdout.ipynb` | Colab runner for the hold-out queue (`configs/holdout/`: baseline, +augmentation, +oversampling) |
 
 ## Run
 
