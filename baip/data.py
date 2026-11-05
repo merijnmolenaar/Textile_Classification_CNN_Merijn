@@ -99,10 +99,14 @@ def index_images(image_dirs):
 
 
 def build_index(cfg):
-    """Returns (samples, classes): samples = ordered list of (sid, label vector, [paths]).
+    """Returns (samples, classes, skipped): samples = ordered list of (sid, label vector, [paths]);
+    skipped = {excluded class: [sample ids left out because they contain it]}.
 
     Order follows the label file, as in Elsherif's notebook, so his split can be rebuilt.
     Classes with no positive sample are dropped, as in his notebook.
+    `data.exclude_classes`: samples containing any of these classes are left out, and the
+    classes are removed from the output. The label file is parsed with the full class list
+    first, so a sample like "50PEATfibre 50cotton" is skipped, not relabelled as pure cotton.
     """
     dc = cfg["data"]
     df = load_labels(dc["labels_xlsx"], dc["classes"], dc.get("label_overrides"))
@@ -112,17 +116,28 @@ def build_index(cfg):
     keys = [k for k in df["key"] if k in s2i and k not in excl]
     unlabelled = sorted(set(s2i) - set(df["key"]))
     lab = df.set_index("key")[dc["classes"]]
-    Y = np.stack([lab.loc[k].to_numpy(dtype=np.float32) for k in keys])
+
+    excl_cls = list(dc.get("exclude_classes") or [])
+    unknown = [c for c in excl_cls if c not in dc["classes"]]
+    if unknown:
+        raise ValueError(f"data.exclude_classes {unknown} not in data.classes")
+    skipped = {c: [k for k in keys if lab.at[k, c] == 1] for c in excl_cls}
+    gone = {k for ids in skipped.values() for k in ids}
+    keys = [k for k in keys if k not in gone]
+    use = [c for c in dc["classes"] if c not in excl_cls]
+
+    Y = np.stack([lab.loc[k, use].to_numpy(dtype=np.float32) for k in keys])
     keep = Y.sum(0) > 0
-    classes = [c for c, k in zip(dc["classes"], keep) if k]
-    dropped = [c for c, k in zip(dc["classes"], keep) if not k]
+    classes = [c for c, k in zip(use, keep) if k]
+    dropped = [c for c, k in zip(use, keep) if not k]
     Y = Y[:, keep]
     samples = [(k, Y[i], s2i[k]) for i, k in enumerate(keys)]
     print(f"{n_img} images | {len(s2i)} sample ids | {len(samples)} matched to labels"
           + (f" | excluded: {sorted(excl)}" if excl else "")
+          + (f" | excluded classes {excl_cls}: {len(gone)} samples skipped {sorted(gone)}" if excl_cls else "")
           + (f" | unlabelled: {unlabelled}" if unlabelled else "")
           + (f" | dropped empty classes: {dropped}" if dropped else ""))
-    return samples, classes
+    return samples, classes, skipped
 
 
 def records(samples, ids):

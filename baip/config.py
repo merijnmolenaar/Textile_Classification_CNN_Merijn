@@ -27,6 +27,10 @@ DEFAULTS = {
         "exclude": [],              # sample ids left out entirely
         "classes": ["Cotton", "Wool", "Hemp", "Linen", "Elastane", "Polyester",
                     "Viscose", "Silk", "Tencel", "PLA", "Polyamide", "Alpaca", "Peat fibre"],
+        # Classes left out of the model. Every sample that contains one of them is skipped
+        # (the label file itself is not changed), and the class is removed from the output.
+        # Skipped samples are listed in <run>/excluded_samples.json.
+        "exclude_classes": [],
         "um_per_px": 7.58,          # logged with every run; the RQ is about this number
         "mode": "resize",           # "resize": whole frame squashed to img_size (Elsherif)
                                     # "crop":   native-resolution img_size crops, no resizing

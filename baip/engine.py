@@ -177,7 +177,9 @@ def run(cfg):
     print(f"run {run_dir.name} | device {env['device']} {env.get('gpu', '')} | commit {str(env['commit'])[:8]}"
           + (" (uncommitted changes!)" if env["dirty"] else ""))
 
-    samples, classes = D.build_index(cfg)
+    samples, classes, skipped = D.build_index(cfg)
+    if skipped:   # samples left out by data.exclude_classes, per class
+        (run_dir / "excluded_samples.json").write_text(json.dumps(skipped, indent=1))
     with open(run_dir / "labels.csv", "w", newline="") as fh:   # exact labels this run used
         w = csv.writer(fh)
         w.writerow(["sample", *classes, "n_images"])
